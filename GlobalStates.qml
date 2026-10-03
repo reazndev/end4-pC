@@ -9,8 +9,11 @@ pragma ComponentBehavior: Bound
 
 Singleton {
     id: root
+    signal requestBluetoothDialog()
     property bool barOpen: true
+    property bool barStyleEditorOpen: false
     property bool crosshairOpen: false
+    property bool equalizerOpen: false
     property bool sidebarLeftOpen: false
     property bool sidebarRightOpen: false
     property bool mediaControlsOpen: false
@@ -31,7 +34,14 @@ Singleton {
     property bool superReleaseMightTrigger: true
     property bool wallpaperSelectorOpen: false
     property bool workspaceShowNumbers: false
-    property string settingsPage: ""
+    property var settingsTarget: null
+
+    function openSettingsAt(pageId, label, section, subsection) {
+        root.settingsOpen = true;
+        Qt.callLater(() => {
+            root.settingsTarget = { page: pageId, label: label ?? "", section: section ?? "", subsection: subsection ?? "" };
+        });
+    }
     property Item currentPageInstance: null
     property list<real> visualizerPoints: []
     property bool desktopWidgetKeyboardFocus: false
@@ -43,6 +53,36 @@ Singleton {
     property bool dropShelfOpen: false
     property real dropShelfX: 0
     property real dropShelfY: 0
+    property string osdIndicatorType: "volume"
+    property bool barCenterOnly: false
+    property bool diSessionOpen: false
+    property bool startupLockPending: true
+
+    Timer {
+        interval: 3000
+        running: true
+        onTriggered: root.startupLockPending = false
+    }
+
+    readonly property bool dynamicIslandEnabled: Config.options.bar.layouts.leftLayout.includes("dynamicIsland")
+        || Config.options.bar.layouts.middleLayout.includes("dynamicIsland")
+        || Config.options.bar.layouts.rightLayout.includes("dynamicIsland")
+
+    signal centeredWallpaperThumpRequested()
+
+    // Shared by desktop (Background) and lock screen (LockSurface) scroll-to-cycle
+    readonly property var centeredShapeOptions: [
+        "Circle", "Square", "Slanted", "Arch", "Arrow", "SemiCircle", "Oval", "Pill",
+        "Triangle", "Diamond", "ClamShell", "Pentagon", "Gem", "Sunny", "VerySunny",
+        "Cookie4Sided", "Cookie6Sided", "Cookie7Sided", "Cookie9Sided", "Cookie12Sided",
+        "Ghostish", "Clover4Leaf", "Clover8Leaf", "Burst", "SoftBurst", "Flower",
+        "Puffy", "PuffyDiamond", "PixelCircle", "Bun", "Heart"
+    ]
+    function cycleCenteredWallpaperShape(direction) {
+        const opts = root.centeredShapeOptions
+        const i = opts.indexOf(Config.options.background.centeredWallpaperShape)
+        Config.options.background.centeredWallpaperShape = opts[(i + direction + opts.length) % opts.length]
+    }
 
     readonly property var hotCornerOptions: [
         { displayName: Translation.tr("None"),                  value: "none" },
@@ -55,7 +95,8 @@ Singleton {
         { displayName: Translation.tr("ScreenShot Region"),        value: "regionSelectorOpen" },
         { displayName: Translation.tr("Screen Translator"),      value: "screenTranslatorOpen" },
         { displayName: Translation.tr("On-screen Keyboard"),     value: "oskOpen" },
-        { displayName: Translation.tr("Session Menu"),           value: "sessionOpen" }
+        { displayName: Translation.tr("Session Menu"),           value: "sessionOpen" },
+        { displayName: Translation.tr("Equalizer"),           value: "equalizerOpen" }
     ]
 
     function toggleState(name) {

@@ -140,11 +140,10 @@ AbstractBackgroundWidget {
         converter.outputPath = valid[0].replace(/\.[^/.]+$/, "") + "_converted." + root.selectedFormat
         converter.running = true
     }
-
-    Rectangle {
+    
+    WidgetCard {
         id: contentItem
-        color: Appearance.colors.colPrimaryContainer
-        radius: Appearance.rounding?.verylarge ?? 30
+        widget: root
         implicitWidth: 276
         implicitHeight: 252
 
@@ -181,7 +180,7 @@ AbstractBackgroundWidget {
                                                 Appearance.colors.colError.r,
                                                 Appearance.colors.colError.g,
                                                 Appearance.colors.colError.b, 0.15)
-                        default:           return Appearance.colors.colSurfaceContainerLow 
+                        default:           return ColorUtils.transparentize(Appearance.colors.colLayer0, 0.8)
                     }
                 }
                 border.color: {
@@ -300,9 +299,9 @@ AbstractBackgroundWidget {
                 StyledComboBox {
                     Layout.fillWidth: true
                     model: root.formatOptions
-                    colBackground: Appearance.colors.colSurfaceContainerLow
-                    colBackgroundHover: Appearance.colors.colSurfaceContainerLow
-                    colBackgroundActive: Appearance.colors.colSurfaceContainerLow // same color I didn't like the hover 
+                    colBackground: ColorUtils.transparentize(Appearance.colors.colLayer0, 0.8)
+                    colBackgroundHover: ColorUtils.transparentize(Appearance.colors.colLayer0, 0.8)
+                    colBackgroundActive: ColorUtils.transparentize(Appearance.colors.colLayer0, 0.8) // same color I didn't like the hover 
                     textRole: "displayName"
                     valueRole: "value"
                     currentIndex: {

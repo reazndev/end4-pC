@@ -24,11 +24,30 @@ ContentPage {
     }
 
     function runUpdateDots() {
-        Quickshell.execDetached([
-            "kitty", "--hold",
-            "bash", "-c",
-            "killall qs; sleep 0.5; cd ~/.config/quickshell/ && rm -rf end4-pC && git clone https://github.com/pctrade/end4-pC.git && nohup qs -c end4-pC > /tmp/qs.log 2>&1 &"
-        ])
+        const updateScript = `
+            set -e
+            DIR="$HOME/.config/quickshell"
+
+            # Download to temp first
+            rm -rf "$DIR/end4-pC-tmp"
+            git clone https://github.com/pctrade/end4-pC.git "$DIR/end4-pC-tmp"
+
+            # Apply update
+            rm -rf "$DIR/end4-pC-old"
+            [ -d "$DIR/end4-pC" ] && mv "$DIR/end4-pC" "$DIR/end4-pC-old"
+            mv "$DIR/end4-pC-tmp" "$DIR/end4-pC"
+
+            # Reload
+            killall qs 2>/dev/null || true
+            sleep 0.5
+            setsid qs -c end4-pC >/tmp/qs.log 2>&1 < /dev/null &
+            disown
+
+            # Cleanup
+            rm -rf "$DIR/end4-pC-old"
+        `
+
+        Quickshell.execDetached(["kitty", "--hold", "bash", "-c", updateScript])
         Qt.callLater(() => GlobalStates.settingsOpen = false)
     }
 
@@ -60,7 +79,7 @@ ContentPage {
                     anchors.centerIn: parent
                     implicitWidth: 72
                     implicitHeight: 72
-                    source: Quickshell.iconPath(SystemInfo.logo)
+                    source: SystemAppearance.iconPath(SystemInfo.logo)
                 }
             }
 
@@ -115,9 +134,7 @@ ContentPage {
                 }
             }
             RowLayout {
-                anchors.bottom: parent.bottom
-                anchors.right: parent.right
-                anchors.margins: 0
+                Layout.alignment: Qt.AlignBottom | Qt.AlignRight
                 spacing: 8
                 RippleButton {
                     buttonText: Translation.tr("Update Dots")

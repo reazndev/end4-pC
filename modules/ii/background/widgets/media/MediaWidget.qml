@@ -23,17 +23,7 @@ AbstractBackgroundWidget {
     hoverEnabled: true
 
     readonly property var playerList: MprisController.players
-    property MprisPlayer currentPlayer: {
-        const preferred = Config.options.bar.media.preferredPlayer.trim().toLowerCase()
-        if (preferred.length === 0) return MprisController.activePlayer
-        const _ = MprisController.players.count
-        for (const p of MprisController.players) {
-            if ((p.identity ?? "").toLowerCase().includes(preferred) ||
-                (p.desktopEntry ?? "").toLowerCase().includes(preferred))
-                return p
-        }
-        return MprisController.activePlayer
-    }
+    property MprisPlayer currentPlayer: MprisController.activePlayer
     property var artUrl: currentPlayer?.trackArtUrl
     property string artDownloadLocation: Directories.coverArt
     property string artFileName: Qt.md5(artUrl)
@@ -63,6 +53,7 @@ AbstractBackgroundWidget {
         switch (root.sizeMode) {
             case "1x1": return root.snapWidth1
             case "1x2": return root.snapWidth2
+            case "2x2": return root.snapWidth2
             case "2x3": return root.snapWidth3
             default:    return root.snapWidth3
         }
@@ -80,8 +71,9 @@ AbstractBackgroundWidget {
     readonly property real heightEnterDelta: (root.doubleCardHeight - root.cardHeight) * root.heightEnterFraction
 
     function modeForDrag(dx, dy, startWidth) {
-        if (root.sizeMode === "1x3" && dy > root.heightEnterDelta) {
-            return "2x3"
+        if (dy > root.heightEnterDelta) {
+            if (root.sizeMode === "1x3" || root.sizeMode === "2x3") return "2x3"
+            if (root.sizeMode === "1x2" || root.sizeMode === "2x2") return "2x2"
         }
         return root.modeForWidth(startWidth + dx)
     }
@@ -130,16 +122,17 @@ AbstractBackgroundWidget {
     StyledRectangularShadow {
         target: card
         z: -2
+        visible: Config.options.background.widgets.shadow
     }
 
-    Rectangle {
+    WidgetCard {
         id: card
+        widget: root
+        shadowed: false
         implicitWidth: root.widgetWidth
-        implicitHeight: root.sizeMode === "2x3"
+        implicitHeight: (root.sizeMode === "2x3" || root.sizeMode === "2x2")
             ? root.doubleCardHeight
             : (root.cardHeight + (root.sizeMode === "1x3" && root.showLyrics ? 264 : 0))
-        radius: Appearance.rounding?.verylarge ?? 30
-        color: Appearance.colors.colPrimaryContainer
         clip: true
 
         Behavior on implicitHeight {
@@ -151,6 +144,7 @@ AbstractBackgroundWidget {
             sourceComponent: {
                 if (root.sizeMode === "1x1") return oneByOneContent
                 if (root.sizeMode === "1x2") return oneByTwoContent
+                if (root.sizeMode === "2x2") return twoByTwoContent
                 if (root.sizeMode === "2x3") return twoByThreeContent
                 return oneByThreeContent
             }
@@ -207,6 +201,7 @@ AbstractBackgroundWidget {
                         bottomMargin: 10
                     }
                     spacing: 4
+                    visible: MprisController.activePlayer !== null
 
                     RippleButton {
                         implicitWidth: 26
@@ -222,7 +217,7 @@ AbstractBackgroundWidget {
                             text: "skip_previous"
                             iconSize: 16
                             fill: 1
-                            color: "white"
+                            color: Appearance.colors.colPrimary
                         }
                     }
 
@@ -255,7 +250,7 @@ AbstractBackgroundWidget {
                             text: "skip_next"
                             iconSize: 16
                             fill: 1
-                            color: "white"
+                            color: Appearance.colors.colPrimary
                         }
                     }
                 }
@@ -399,6 +394,145 @@ AbstractBackgroundWidget {
                                 fill: 1
                                 color: Appearance.colors.colOnPrimaryContainer
                             }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2x2
+        Component {
+            id: twoByTwoContent
+            ColumnLayout {
+                anchors.fill: parent
+                spacing: 0
+
+                // Art 
+                Rectangle {
+                    id: bigArt
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    color: Appearance.colors.colSurfaceContainerLow
+                    topLeftRadius: card.radius
+                    topRightRadius: card.radius
+                    bottomLeftRadius: 0
+                    bottomRightRadius: 0
+                    clip: true
+                    layer.enabled: true
+                    layer.effect: OpacityMask {
+                        maskSource: Rectangle {
+                            width: bigArt.width
+                            height: bigArt.height
+                            topLeftRadius: card.radius
+                            topRightRadius: card.radius
+                            bottomLeftRadius: 0
+                            bottomRightRadius: 0
+                        }
+                    }
+
+                    StyledImage {
+                        anchors.fill: parent
+                        source: root.displayedArtFilePath
+                        fillMode: Image.PreserveAspectCrop
+                        cache: false
+                        antialiasing: true
+                        sourceSize.width: bigArt.width * 2
+                        sourceSize.height: bigArt.height * 2
+                        visible: root.displayedArtFilePath !== ""
+                    }
+
+                    MaterialSymbol {
+                        anchors.centerIn: parent
+                        fill: 1
+                        text: "music_note"
+                        iconSize: root.cardHeight / 2.5
+                        color: Appearance.colors.colOnSecondaryContainer
+                        visible: root.displayedArtFilePath === ""
+                    }
+                }
+
+                // Artist / title
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 14
+                    Layout.rightMargin: 14
+                    Layout.topMargin: 10
+                    spacing: 2
+
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: root.currentPlayer?.trackArtist ?? "Play"
+                        font.pixelSize: Appearance.font.pixelSize.normal
+                        font.weight: Font.DemiBold
+                        color: Appearance.colors.colOnPrimaryContainer
+                        elide: Text.ElideRight
+                    }
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: root.currentPlayer?.trackTitle ?? Translation.tr("Something")
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        color: Appearance.colors.colOnPrimaryContainer
+                        opacity: 0.65
+                        elide: Text.ElideRight
+                    }
+                }
+
+                // Controls
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.topMargin: 8
+                    Layout.bottomMargin: 12
+                    spacing: 6
+
+                    RippleButton {
+                        implicitWidth: 28
+                        implicitHeight: 28
+                        buttonRadius: Appearance.rounding?.full ?? 999
+                        colBackground: "transparent"
+                        colBackgroundHover: Appearance.colors.colPrimaryContainerHover
+                        colRipple: Appearance.colors.colPrimaryContainerActive
+                        downAction: () => root.currentPlayer?.previous()
+
+                        MaterialSymbol {
+                            anchors.centerIn: parent
+                            text: "skip_previous"
+                            iconSize: root.buttonIconSize - 2
+                            fill: 1
+                            color: Appearance.colors.colOnPrimaryContainer
+                        }
+                    }
+
+                    MaterialShapeWrappedMaterialSymbol {
+                        shape: MaterialShape.Shape.Cookie12Sided
+                        color: Appearance.colors.colPrimary
+                        colSymbol: Appearance.colors.colOnPrimary
+                        text: root.currentPlayer?.isPlaying ? "pause" : "play_arrow"
+                        iconSize: root.buttonIconSize + 6
+                        fill: 1
+                        padding: 8
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: root.currentPlayer?.togglePlaying()
+                        }
+                    }
+
+                    RippleButton {
+                        implicitWidth: 28
+                        implicitHeight: 28
+                        buttonRadius: Appearance.rounding?.full ?? 999
+                        colBackground: "transparent"
+                        colBackgroundHover: Appearance.colors.colPrimaryContainerHover
+                        colRipple: Appearance.colors.colPrimaryContainerActive
+                        downAction: () => root.currentPlayer?.next()
+
+                        MaterialSymbol {
+                            anchors.centerIn: parent
+                            text: "skip_next"
+                            iconSize: root.buttonIconSize - 2
+                            fill: 1
+                            color: Appearance.colors.colOnPrimaryContainer
                         }
                     }
                 }
@@ -686,7 +820,7 @@ AbstractBackgroundWidget {
 
                             StyledText {
                                 Layout.fillWidth: true
-                                text: root.currentPlayer?.trackTitle ?? Translation.tr("Something")
+                                text: root.currentPlayer?.trackTitle ?? Translation.tr("Play")
                                 font.pixelSize: Appearance.font.pixelSize.small
                                 font.weight: Font.DemiBold
                                 font.italic: true
@@ -695,7 +829,7 @@ AbstractBackgroundWidget {
                             }
                             StyledText {
                                 Layout.fillWidth: true
-                                text: root.currentPlayer?.trackArtist ?? "Play"
+                                text: root.currentPlayer?.trackArtist ?? "Something"
                                 font.pixelSize: Appearance.font.pixelSize.smaller
                                 color: Appearance.colors.colOnPrimaryContainer
                                 opacity: 0.65
